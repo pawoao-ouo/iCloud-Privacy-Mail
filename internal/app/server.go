@@ -4699,8 +4699,8 @@ func parseAfter(value string) (time.Time, error) {
 var (
 	contextOTPRegex = regexp.MustCompile(`(?i)(?:openai|chatgpt|otp|code|verification|验证码|验证|代码)[^\d]{0,80}(\d{6})`)
 	plainOTPRegex   = regexp.MustCompile(`\b(\d{6})\b`)
-	// xAI 确认码带杠：198-612（SpaceXAI confirmation code）
-	dashedOTPRegex  = regexp.MustCompile(`\b(\d{3}-\d{3})\b`)
+	// xAI 确认码带杠：198-612（SpaceXAI confirmation code），品牌词锚定防 CSS #333333 误伤
+	xaiDashedCode   = regexp.MustCompile(`(?i)(?:spacex?ai|grok|x\.?ai|verification code|confirmation code).{0,60}?(\d{3}-\d{3})`)
 	// xAI/Grok 验证码：6 位大写字母数字混（如 XAI0X1），关键词锚定或 XAI 前缀
 	xaiAlnumContext = regexp.MustCompile(`(?i:(?:x\.?ai|grok|verification code|your code|code is|code:))[^\w]{0,40}([A-Z0-9]{6})`)
 	xaiPrefixCode   = regexp.MustCompile(`\b(XAI[A-Z0-9]{3})\b`)
@@ -4726,14 +4726,14 @@ func extractOTP(text string) string {
 	if matches := contextOTPRegex.FindStringSubmatch(text); len(matches) == 2 && validOTP(matches[1]) {
 		return matches[1]
 	}
+	// xAI 带杠码优先于 6 位纯数字（后者会吹 CSS 颜色值）
+	if matches := xaiDashedCode.FindStringSubmatch(text); len(matches) == 2 {
+		return matches[1]
+	}
 	for _, matches := range plainOTPRegex.FindAllStringSubmatch(text, -1) {
 		if len(matches) == 2 && validOTP(matches[1]) {
 			return matches[1]
 		}
-	}
-	// xAI 带杠码（198-612）放在字母数字码之前
-	if matches := dashedOTPRegex.FindStringSubmatch(text); len(matches) == 2 {
-		return matches[1]
 	}
 	// 字母数字码（xAI 等）放数字码之后，不动 OpenAI 行为
 	if matches := xaiAlnumContext.FindStringSubmatch(text); len(matches) == 2 && validAlnumOTP(matches[1]) {
